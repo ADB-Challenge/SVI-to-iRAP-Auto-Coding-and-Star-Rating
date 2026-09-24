@@ -1,0 +1,45 @@
+[project]
+name = "adb-model-safety-score"
+version = "0.1.0"
+description = "Street View object detection (YOLO-World + Mask2Former) at accident points, plus per-segment Speed Safety Score, for the ADB AI for Safer Roads challenge."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "shapely>=2.0",
+    "requests>=2.31",
+    "python-dotenv>=1.0",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "pillow>=10.0",
+    "tqdm>=4.66",
+    "torch>=2.7",
+    "torchvision>=0.22",
+    "ultralytics>=8.4.61",
+    "matplotlib>=3.10.9",
+    "transformers>=5.10.2",
+    "adjusttext>=1.4.0",
+    "pyproj>=3.7.2",
+    "osmium>=4.3.1",
+]
+
+[project.scripts]
+adb-pipeline = "adb_pipeline.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["adb_pipeline"]
+
+# --- PyTorch CUDA build (GPU available) -------------------------------------
+# cu128 is required for Blackwell GPUs (RTX 50-series, sm_120); earlier cu12x
+# wheels lack the kernels and crash at runtime.
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }

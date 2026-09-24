@@ -1,0 +1,13 @@
+ADB_Innovation_Thailand.geojson
+# Python
+__pycache__/
+*.py[oc]
+.venv/
+
+# Secrets
+.env
+
+# Regenerable outputs and auto-downloaded model weights
+output/
+weights/
+*.pt
