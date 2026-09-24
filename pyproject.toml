@@ -22,9 +22,6 @@ dependencies = [
     "osmium>=4.3.1",
 ]
 
-[project.scripts]
-adb-pipeline = "adb_pipeline.cli:main"
-
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
