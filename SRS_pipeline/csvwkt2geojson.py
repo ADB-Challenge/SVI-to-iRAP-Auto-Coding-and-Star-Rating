@@ -177,6 +177,18 @@ CODE_LABELS["Pedestrian peak hour flow along the road passenger-side"] = _PED_BI
 CODE_LABELS["Bicycle peak hourly flow"] = _PED_BIKE_FLOW
 
 
+# pandas' default na_values list, minus "NA" -- ViDA's API returns the literal
+# string "NA" to mean "Not Applicable" (e.g. bicycle_star when a segment has
+# zero recorded cyclist flow -- a deliberate, meaningful answer, not missing
+# data). Reading with the default na_values silently turns that into NaN,
+# indistinguishable from a real data gap. Every other standard missing-value
+# token is still recognised as NaN.
+_NA_VALUES_EXCEPT_NA = [
+    "", "#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN", "-NaN", "-nan",
+    "1.#IND", "1.#QNAN", "<NA>", "N/A", "NULL", "NaN", "None", "n/a", "nan", "null",
+]
+
+
 def _code_text(column: str, value) -> str | None:
     labels = CODE_LABELS.get(column)
     if labels is None or value is None:
@@ -187,61 +199,71 @@ def _code_text(column: str, value) -> str | None:
         return None
 
 
-# Read CSV
-df = pd.read_csv(IN_CSV)
+def convert(in_csv: str, out_file: str) -> None:
+    """Read in_csv (needs Latitude/Longitude start/end columns), write
+    out_file as a GeoJSON FeatureCollection of LineString features -- one
+    per row, every CSV column carried over as a property, plus the pKey /
+    "<column> text" additions above. Reusable so other one-off CSVs (e.g. a
+    speed-sensitivity scenario batch) can go through the same conversion
+    without duplicating the CODE_LABELS table."""
+    df = pd.read_csv(in_csv, keep_default_na=False, na_values=_NA_VALUES_EXCEPT_NA)
 
-# Replace NaN with None across the entire DataFrame
-df = df.fillna(np.nan).replace([np.nan], [None])
+    # Replace NaN with None across the entire DataFrame
+    df = df.fillna(np.nan).replace([np.nan], [None])
 
-features = []
+    features = []
 
-for _, row in df.iterrows():
-    # Create Linestring with Shapely geometry
-    geometry = LineString([
-            (row["Longitude start"], row["Latitude start"]),
-            (row["Longitude end"], row["Latitude end"])
-        ])
-    # Print the WKT representation
-    #print(geometry.wkt)
+    for _, row in df.iterrows():
+        # Create Linestring with Shapely geometry
+        geometry = LineString([
+                (row["Longitude start"], row["Latitude start"]),
+                (row["Longitude end"], row["Latitude end"])
+            ])
+        # Print the WKT representation
+        #print(geometry.wkt)
 
-    # Use all columns as GeoJSON properties
-    properties = row.to_dict()
+        # Use all columns as GeoJSON properties
+        properties = row.to_dict()
 
-    # Extract pKey from "Image reference" for Mapillary iframe embed
-    text = row["Image reference"]
-    if "pKey=" in text:
-        result = text.split("pKey=", 1)[1]
-        # If you want to stop at the next '&' or end of string:
-        result = result.split("&")[0]
-        #print(result)
-        properties["pKey"] = int(result)
+        # Extract pKey from "Image reference" for Mapillary iframe embed
+        text = row["Image reference"]
+        if "pKey=" in text:
+            result = text.split("pKey=", 1)[1]
+            # If you want to stop at the next '&' or end of string:
+            result = result.split("&")[0]
+            #print(result)
+            properties["pKey"] = int(result)
 
-    # Add "<column> text" human-readable labels for every coded column
-    # (dashboard-only -- see CODE_LABELS above, not written back to the CSV)
-    for column, value in row.items():
-        label = _code_text(column, value)
-        if label is not None:
-            properties[f"{column.strip()} text"] = label
+        # Add "<column> text" human-readable labels for every coded column
+        # (dashboard-only -- see CODE_LABELS above, not written back to the CSV)
+        for column, value in row.items():
+            label = _code_text(column, value)
+            if label is not None:
+                properties[f"{column.strip()} text"] = label
 
-    feature = {
-        "type": "Feature",
-        "geometry": mapping(geometry),
-        "properties": properties
+        feature = {
+            "type": "Feature",
+            "geometry": mapping(geometry),
+            "properties": properties
+        }
+
+        features.append(feature)
+
+    # Create GeoJSON FeatureCollection
+    geojson = {
+        "type": "FeatureCollection",
+        "features": features
     }
 
-    features.append(feature)
+    # Write GeoJSON file
+    # ensure_ascii=False so symbols like the "≥"/"–" text labels above
+    # (>=, en dash, etc.) are written as real UTF-8 characters, not \uXXXX
+    # escapes -- still valid JSON either way, but keeps the raw file readable.
+    with open(out_file, "w", encoding="utf-8") as f:
+        json.dump(geojson, f, indent=2, ensure_ascii=False)
 
-# Create GeoJSON FeatureCollection
-geojson = {
-    "type": "FeatureCollection",
-    "features": features
-}
+    print(f"Created {out_file}")
 
-# Write GeoJSON file
-# ensure_ascii=False so symbols like the "≥"/"–" text labels above
-# (>=, en dash, etc.) are written as real UTF-8 characters, not \uXXXX escapes
-# -- still valid JSON either way, but this keeps the raw file itself readable.
-with open(OUT_FILE, "w", encoding="utf-8") as f:
-    json.dump(geojson, f, indent=2, ensure_ascii=False)
 
-print("Created out_file.geojson")
+if __name__ == "__main__":
+    convert(IN_CSV, OUT_FILE)
