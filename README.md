@@ -33,7 +33,7 @@ From inside `SRS_pipeline/`, in order:
     uv run python gather.py              # Mapillary images + YOLO-World + Mask2Former (~1.5h)
     uv run python encode.py              # -> iRAP v3.10 upload CSV
     uv run python extract_irap_srs.py    # ViDA Star Ratings (~20 min)
-    uv run python csvwkt2geojson.py      # -> GeoJSON for kepler.gl / QGIS
+    uv run python csvwkt2geojson.py      # -> GeoJSON for kepler.gl / QGIS / ArcGIS
 
 Before the last step, copy `output/main/enriched_irap_upload.csv` to
 `output/main/SRS_rating(ViDA_API).csv` (the name `csvwkt2geojson.py` reads).
